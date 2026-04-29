@@ -1,0 +1,43 @@
+# .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Env
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/scratch
+token.txt
+test_acct.json
+test_login.json
+test_reg.json
+test_e2e.py
+lived_test.py
+test_full.py
+fix_*.py
+
+# SQLite
+*.sqlite3
+*.db
