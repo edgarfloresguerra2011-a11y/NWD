@@ -126,11 +126,11 @@ def generate_schedule(ramp_days: int = 28, max_per_day: int = 100) -> list[dict]
 
 async def run_warmup_cycle(account_id: int):
     """
-    Simulated warmup cycle for an account.
-    In production, this would be a Celery task or background job.
+    Trigger a real warmup cycle for an account via Celery.
     """
-    # This would connect to the email account via IMAP/SMTP,
-    # send warmup emails to the pool, check for replies,
-    # and update metrics in the database.
-    await asyncio.sleep(0.1)  # Simulate work
-    return {"status": "cycle_complete", "account_id": account_id}
+    from app.tasks import run_warmup_for_account
+    
+    # In production, this would be scheduled by Celery Beat, 
+    # but we can also trigger it manually from the API.
+    task = run_warmup_for_account.delay(account_id)
+    return {"status": "task_queued", "task_id": task.id, "account_id": account_id}

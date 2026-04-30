@@ -1,5 +1,8 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pathlib import Path
+
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -23,11 +26,20 @@ class Settings(BaseSettings):
     MAX_EMAILS_PER_ACCOUNT_PER_DAY: int = 100
 
     STRIPE_API_KEY: Optional[str] = None
+    STRIPE_WEBHOOK_SECRET: Optional[str] = None
+    STRIPE_PRICE_ID: Optional[str] = None
+
+    OPENROUTER_API_KEY: Optional[str] = None
+    AI_MODEL: str = "google/gemini-pro-1.5"
+    
     WHITELABEL_ENABLED: bool = False
     SENTRY_DSN: Optional[str] = None
 
-    class Config:
-        env_file = ".env"
+    model_config = {
+        "env_file": str(_ENV_FILE),
+        "extra": "ignore"
+    }
+
 
 
 settings = Settings()

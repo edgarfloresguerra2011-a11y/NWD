@@ -87,3 +87,30 @@ async def update_warmup_schedule(
 
     await db.commit()
     return {"message": "Schedule actualizado correctamente", "max_per_day": account.warmup_max_per_day}
+
+@router.post("/{account_id}/trigger")
+async def trigger_warmup_cycle(
+    account_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger a manual warmup cycle for an account"""
+    result = await db.execute(
+        select(EmailAccount).where(EmailAccount.id == account_id, EmailAccount.user_id == current_user.id)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
+
+    from app.tasks import run_warmup_for_account
+    run_warmup_for_account.delay(account_id)
+    
+    return {"message": "Warmup cycle queued in Celery", "account_id": account_id}
+
+@router.post("/webhook/bounce")
+async def bounce_webhook(payload: dict, db: AsyncSession = Depends(get_db)):
+    """Placeholder for external bounce/spam webhooks (SendGrid, Mailgun, etc.)"""
+    # Logic to identify account and update bounce_rate
+    # For now, just log the receipt
+    print(f"Received webhook: {payload}")
+    return {"status": "received"}

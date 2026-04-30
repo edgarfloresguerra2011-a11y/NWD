@@ -1,43 +1,68 @@
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from app.api.routes import auth, accounts, campaigns
-from app.core.config import settings
-from app.db.session import engine, Base
+from app.config import settings
+from app.database import init_db
+from app.core.observability import setup_structured_logging
+from app.core.middleware import ObservabilityMiddleware
+from app.api import auth, accounts, campaigns, analytics, warmup, domains
+from app.api import billing, health
+from app.core.rate_limit import limiter, _rate_limit_exceeded_handler, RateLimitExceeded
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear tablas al arrancar (en producción usar Alembic)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Startup and shutdown events"""
+    setup_structured_logging()
+    await init_db()
     yield
 
 
 app = FastAPI(
-    title="Nexus Warmup Dashboard",
-    description="API para gestión de warmup de emails y campañas cold email",
-    version="1.0.0",
+    title=settings.APP_NAME,
+    version=settings.VERSION,
+    description="Email Warming & Cold Email Platform API",
     lifespan=lifespan,
 )
 
-# CORS — en producción reemplazar "*" por el dominio real del frontend
+# Attach rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Security: Prevent host header attacks
+app.add_middleware(
+    TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "*.nexusengine.com"]
+)
+
+# Observability middleware (must be added before CORS)
+app.add_middleware(ObservabilityMiddleware)
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://*.nexusengine.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Routers
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(accounts.router, prefix="/api/v1")
-app.include_router(campaigns.router, prefix="/api/v1")
+# Mount routers
+app.include_router(auth.router)
+app.include_router(accounts.router)
+app.include_router(campaigns.router)
+app.include_router(analytics.router)
+app.include_router(warmup.router)
+app.include_router(domains.router)
+app.include_router(billing.router)
+app.include_router(health.router)
 
 
 @app.get("/health")
-async def health():
-    return {"status": "ok", "env": settings.environment}
+async def health_check():
+    return {"status": "ok", "env": settings.ENVIRONMENT}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

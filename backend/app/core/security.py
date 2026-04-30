@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 from typing import Optional
-
-from jose import JWTError, jwt
+from jose import jwt, JWTError
+import base64
+from cryptography.fernet import Fernet
+import hashlib
 from passlib.context import CryptContext
-
-from app.core.config import settings
+from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -13,21 +14,44 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def get_password_hash(password: str) -> str:
+def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def get_fernet() -> Fernet:
+    # Derive a 32-byte key from the SECRET_KEY
+    key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode()).digest())
+    return Fernet(key)
+
+
+def encrypt_string(text: str) -> str:
+    if not text:
+        return text
+    f = get_fernet()
+    return f.encrypt(text.encode()).decode()
+
+
+def decrypt_string(encrypted_text: str) -> str:
+    if not encrypted_text:
+        return encrypted_text
+    f = get_fernet()
+    try:
+        return f.decrypt(encrypted_text.encode()).decode()
+    except Exception:
+        return encrypted_text  # Fallback if not encrypted or key changed
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + (
-        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def decode_token(token: str) -> Optional[dict]:
     try:
-        return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except JWTError:
         return None

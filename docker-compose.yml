@@ -22,7 +22,6 @@ services:
     depends_on:
       - backend
     environment:
-      # En Docker, el frontend habla con el servicio 'backend', no localhost
       - VITE_API_URL=http://backend:8000/api/v1
 
   postgres:
@@ -53,7 +52,7 @@ services:
 
   celery_worker:
     build: ./backend
-    command: celery -A app.services.celery_app worker --loglevel=info
+    command: celery -A app.celery_app worker --loglevel=info
     env_file: ./backend/.env
     depends_on:
       redis:
@@ -65,7 +64,7 @@ services:
 
   celery_beat:
     build: ./backend
-    command: celery -A app.services.celery_app beat --loglevel=info --scheduler celery.schedulers:DatabaseScheduler
+    command: celery -A app.celery_app beat --loglevel=info
     env_file: ./backend/.env
     depends_on:
       redis:
